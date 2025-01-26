@@ -1,0 +1,109 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+  background-color: black;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+canvas {
+  border: 1px solid grey;
+  margin-bottom: 20px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;
+}
+
+.speed-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+#speedSlider {
+  width: 30%;
+  margin-bottom: 5px;
+}
+
+.algorithm-select {
+  margin-bottom: 15px;
+}
+
+#algorithmSelect {
+  padding: 5px;
+  width: 150px;
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  margin: 0 10px;
+  padding: 10px 15px;
+  border: none;
+  cursor: pointer;
+  background-color: #4CAF50; /* Default button color */
+  color: white;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+#startButton {
+  background-color: white;
+  color: black;
+}
+
+#resetButton {
+  background-color: white;
+  color: black;
+}
+
+label {
+  color: white;
+  margin-top: 5px;
+}
+
+.bar-count-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+#barCount {
+  width: 100px;
+  padding: 5px;
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+input[type="number"] {
+  background-color: #333;
+  color: white;
+  border: 1px solid #555;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: orange;
+}
