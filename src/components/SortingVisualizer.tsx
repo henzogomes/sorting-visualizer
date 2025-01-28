@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 
 const SortingVisualizer: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  let numValues = 100;
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -12,8 +13,9 @@ const SortingVisualizer: React.FC = () => {
     const ctx = canvas.getContext("2d")!;
 
     let canvasWidth: number, canvasHeight: number;
-    let numValues = 100; // Default number of bars
     let values: number[] = [];
+    let isSorted = false;
+    let animationFrameId: number;
 
     const MIN_FREQUENCY = 440;
     const MAX_FREQUENCY = 880;
@@ -22,15 +24,72 @@ const SortingVisualizer: React.FC = () => {
 
     let sorting = false;
     let paused = false;
-    let sortingPromise: Promise<void> | null = null;
-    let speed = 100;
+    let speed = 1;
     let currentIndex1 = -1;
     let currentIndex2 = -1;
 
     const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
+      (window as typeof window & { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext)();
     if (!audioContext) {
       console.error("Web Audio API is not supported in this browser.");
+    }
+
+    const sortingEndedEvent = new Event("sortingEnded");
+
+    async function playSortedAnimation() {
+      cancelAnimationFrame(animationFrameId);
+
+      for (let i = 0; i < values.length; i++) {
+        currentIndex1 = i;
+        currentIndex2 = -1;
+        playSound(values[i]);
+        drawBars(i);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
+
+      isSorted = true;
+    }
+
+    function reset() {
+      sorting = false;
+      paused = false;
+      currentIndex1 = -1;
+      currentIndex2 = -1;
+      isSorted = false;
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(animate);
+      setCanvasSize();
+      randomizeValues();
+      drawBars();
+    }
+
+    function drawBars(greenUpToIndex = -1) {
+      const barWidth = canvasWidth / numValues;
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      for (let i = 0; i < values.length; i++) {
+        const height = values[i];
+
+        if (isSorted) {
+          ctx.fillStyle = "green";
+        } else if (i <= greenUpToIndex) {
+          ctx.fillStyle = "green";
+        } else if (i === currentIndex1) {
+          ctx.fillStyle = "green";
+        } else if (i === currentIndex2) {
+          ctx.fillStyle = "red";
+        } else {
+          ctx.fillStyle = "white";
+        }
+
+        ctx.fillRect(i * barWidth, canvasHeight - height, barWidth, height);
+
+        if (barWidth > 1) {
+          ctx.strokeStyle = "black";
+          ctx.strokeRect(i * barWidth, canvasHeight - height, barWidth, height);
+        }
+      }
     }
 
     function setCanvasSize() {
@@ -45,7 +104,7 @@ const SortingVisualizer: React.FC = () => {
 
     async function playSound(value: number) {
       const frequency =
-        MAX_FREQUENCY -
+        MIN_FREQUENCY +
         (MAX_FREQUENCY - MIN_FREQUENCY) * (value / canvasHeight);
 
       const oscillator = audioContext.createOscillator();
@@ -63,7 +122,10 @@ const SortingVisualizer: React.FC = () => {
       gainNode.connect(audioContext.destination);
 
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(1, audioContext.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(
+        0.05,
+        audioContext.currentTime + 0.01
+      );
 
       oscillator.start();
 
@@ -75,30 +137,6 @@ const SortingVisualizer: React.FC = () => {
         );
         oscillator.onended = () => resolve();
       });
-    }
-
-    function drawBars() {
-      const barWidth = canvasWidth / numValues;
-      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-      for (let i = 0; i < values.length; i++) {
-        const height = values[i];
-
-        if (i === currentIndex1) {
-          ctx.fillStyle = "green";
-        } else if (i === currentIndex2) {
-          ctx.fillStyle = "red";
-        } else {
-          ctx.fillStyle = "white";
-        }
-
-        ctx.fillRect(i * barWidth, canvasHeight - height, barWidth, height);
-
-        if (barWidth > 1) {
-          ctx.strokeStyle = "black";
-          ctx.strokeRect(i * barWidth, canvasHeight - height, barWidth, height);
-        }
-      }
     }
 
     function randomizeValues() {
@@ -136,6 +174,7 @@ const SortingVisualizer: React.FC = () => {
       sorting = false;
       currentIndex1 = -1;
       currentIndex2 = -1;
+      document.dispatchEvent(sortingEndedEvent);
     }
 
     async function quickSort(arr: number[], low: number, high: number) {
@@ -181,6 +220,7 @@ const SortingVisualizer: React.FC = () => {
         sorting = false;
         currentIndex1 = -1;
         currentIndex2 = -1;
+        document.dispatchEvent(sortingEndedEvent);
       }
     }
 
@@ -194,32 +234,36 @@ const SortingVisualizer: React.FC = () => {
     function selectAlgorithm(algorithmName: string) {
       if (sortingAlgorithms[algorithmName]) {
         currentAlgorithm = algorithmName;
+        reset();
         if (sorting) {
-          sorting = false; // Stop the current sorting
-          setTimeout(() => startSorting(), 100); // Start new sorting after a short delay
+          sorting = false;
+          setTimeout(() => startSorting(), 100);
         }
       }
     }
 
     function startSorting() {
+      if (isSorted) {
+        reset();
+      }
+
       if (!sorting) {
         sorting = true;
-        sortingPromise = sortingAlgorithms[currentAlgorithm]();
+        isSorted = false;
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(animate);
+        const speedSlider = document.getElementById(
+          "speedSlider"
+        ) as HTMLInputElement;
+        if (speedSlider) {
+          setSpeed(parseInt(speedSlider.value));
+        }
+        sortingAlgorithms[currentAlgorithm]();
       }
     }
 
     function togglePause() {
       paused = !paused;
-    }
-
-    function reset() {
-      sorting = false;
-      paused = false;
-      currentIndex1 = -1;
-      currentIndex2 = -1;
-      setCanvasSize();
-      randomizeValues();
-      drawBars();
     }
 
     function setSpeed(newSpeed: number) {
@@ -228,7 +272,7 @@ const SortingVisualizer: React.FC = () => {
 
     function animate() {
       drawBars();
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
     }
 
     document.addEventListener("keydown", (event) => {
@@ -238,15 +282,12 @@ const SortingVisualizer: React.FC = () => {
       }
     });
 
-    // Initialize the visualization
     setCanvasSize();
+    animationFrameId = requestAnimationFrame(animate);
     reset();
-    requestAnimationFrame(animate);
 
-    // Add resize event listener
     window.addEventListener("resize", setCanvasSize);
 
-    // Setup UI controls
     const speedSlider = document.getElementById(
       "speedSlider"
     ) as HTMLInputElement;
@@ -263,10 +304,12 @@ const SortingVisualizer: React.FC = () => {
       "barCount"
     ) as HTMLInputElement;
 
-    if (speedSlider)
-      speedSlider.addEventListener("input", () =>
-        setSpeed(parseInt(speedSlider.value))
-      );
+    if (speedSlider) {
+      speedSlider.addEventListener("input", () => {
+        setSpeed(parseInt(speedSlider.value));
+      });
+      setSpeed(parseInt(speedSlider.value));
+    }
     if (algorithmSelect)
       algorithmSelect.addEventListener("change", () =>
         selectAlgorithm(algorithmSelect.value)
@@ -280,8 +323,10 @@ const SortingVisualizer: React.FC = () => {
       });
     }
 
-    // Cleanup function
+    document.addEventListener("sortingEnded", playSortedAnimation);
+
     return () => {
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", setCanvasSize);
       document.removeEventListener("keydown", (event) => {
         if (event.code === "Space") {
@@ -305,6 +350,7 @@ const SortingVisualizer: React.FC = () => {
           reset();
         });
       }
+      document.removeEventListener("sortingEnded", playSortedAnimation);
     };
   }, []);
 
@@ -327,8 +373,8 @@ const SortingVisualizer: React.FC = () => {
             type="number"
             id="barCount"
             min="10"
-            max="300"
-            defaultValue="100"
+            max="2000"
+            defaultValue={numValues}
             step="10"
           />
           <label htmlFor="barCount">Bars</label>
